@@ -1,0 +1,14 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlmodel>=0.0.22
+psycopg[binary]>=3.2
+alembic>=1.13
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
+bcrypt==4.0.1
+python-multipart>=0.0.9
+pydantic-settings>=2.4
+email-validator>=2.2
+pyotp>=2.9
+reportlab>=4.0
+tzdata>=2024.1  # time zone data for reports on Windows

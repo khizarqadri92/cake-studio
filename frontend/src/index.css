@@ -1,0 +1,272 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --color-flour: 247 243 238;   /* page background  #F7F3EE */
+  --color-ink: 42 31 29;        /* primary text     #2A1F1D */
+  --color-surface: 255 255 255; /* card/panel       #FFFFFF */
+  --color-hairline: 231 223 213;/* borders          #E7DFD5 */
+  --color-muted: 107 94 88;     /* secondary text   #6B5E58 */
+
+  /* Default palette (Bakery Plum) - overridden per data-palette attribute
+     below, and swapped at runtime by theme/palettes.ts */
+  --color-plum: 110 36 55;      /* #6E2437 */
+  --color-plum-light: 139 58 79;
+  --color-plum-dark: 74 22 38;  /* #4A1626 sidebar */
+  --color-honey: 184 134 43;    /* #B8862B */
+}
+
+html.dark {
+  color-scheme: dark;
+  /* Warm espresso dark palette, matching the bakery brand rather than a
+     generic gray/black dark theme. */
+  --color-flour: 24 20 18;
+  --color-ink: 238 231 221;
+  --color-surface: 36 30 27;
+  --color-hairline: 63 53 46;
+  --color-muted: 178 166 156;
+}
+
+/* Color palettes - each staff member can pick their own. Applied via
+   theme/palettes.ts setting document.documentElement.dataset.palette.
+   "plum" (bakery default) values already live in :root above. */
+html[data-palette="ocean"] {
+  --color-plum: 31 111 120;
+  --color-plum-light: 47 139 148;
+  --color-plum-dark: 21 79 85;
+  --color-honey: 217 164 65;
+}
+html[data-palette="forest"] {
+  --color-plum: 47 82 51;
+  --color-plum-light: 71 113 77;
+  --color-plum-dark: 30 54 32;
+  --color-honey: 201 162 39;
+}
+html[data-palette="berry"] {
+  --color-plum: 142 42 91;
+  --color-plum-light: 176 74 124;
+  --color-plum-dark: 100 29 64;
+  --color-honey: 217 164 65;
+}
+html[data-palette="slate"] {
+  --color-plum: 58 74 92;
+  --color-plum-light: 85 105 126;
+  --color-plum-dark: 38 50 63;
+  --color-honey: 201 124 74;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--color-flour));
+  color: rgb(var(--color-ink));
+  font-family: "Manrope", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* When the organization's default language is Urdu, this class is applied
+   to <html> and switches the whole interface to Noto Nastaliq Urdu -
+   the closest freely licensable equivalent to Noori Nastaleeq. */
+html.font-urdu body {
+  font-family: "Noto Nastaliq Urdu", serif;
+  line-height: 2.1; /* Nastaliq needs more vertical breathing room than Latin text */
+}
+
+/* Numbers, dates, and monospaced data stay legible in their own font even
+   in RTL/Urdu mode - Nastaliq isn't designed for tabular figures. */
+html.font-urdu .font-mono,
+html.font-urdu input[type="number"],
+html.font-urdu input[type="date"],
+html.font-urdu input[type="time"] {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+[dir="rtl"] .rtl-mirror {
+  transform: scaleX(-1);
+}
+
+button {
+  cursor: pointer;
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(var(--color-honey));
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------
+   Patisserie design layer.
+   Applied through the admin shell (.cs-page) so every existing page
+   picks up the same titles, cards, tables and fields without each
+   page having to be rewritten. Selectors are one class + one element,
+   which is enough to sit above single Tailwind utilities.
+   --------------------------------------------------------------- */
+.cs-page h1 {
+  font-family: "Fraunces", serif;
+  font-size: 2.125rem;       /* 34px */
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: rgb(var(--color-ink));
+}
+html.font-urdu .cs-page h1 { font-family: "Noto Nastaliq Urdu", serif; letter-spacing: 0; line-height: 1.9; }
+
+.cs-page h2 { letter-spacing: -0.005em; }
+
+/* Cards and panels */
+.cs-page .rounded-lg.border-hairline.bg-surface,
+.cs-page .bg-surface.border.border-hairline { border-radius: 16px; }
+
+/* Tables */
+.cs-page table { border-collapse: collapse; }
+.cs-page thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--color-muted));
+  letter-spacing: 0.01em;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  background: transparent;
+}
+.cs-page tbody td { padding-top: 0.8rem; padding-bottom: 0.8rem; }
+.cs-page tbody tr { transition: background-color 0.12s ease; }
+.cs-page tbody tr:hover { background: rgb(var(--color-flour) / 0.6); }
+
+/* Form fields */
+.cs-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="range"]),
+.cs-page select,
+.cs-page textarea,
+.cs-modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="range"]),
+.cs-modal select,
+.cs-modal textarea {
+  border-radius: 12px;
+  min-height: 2.625rem;      /* 42px */
+}
+.cs-page input:not([type="checkbox"]):not([type="radio"]):focus, .cs-page select:focus, .cs-page textarea:focus,
+.cs-modal input:not([type="checkbox"]):not([type="radio"]):focus, .cs-modal select:focus, .cs-modal textarea:focus {
+  box-shadow: 0 0 0 4px rgb(var(--color-plum) / 0.1);
+}
+
+/* Primary buttons */
+.cs-page button.bg-plum, .cs-modal button.bg-plum,
+.cs-page a.bg-plum, .cs-modal a.bg-plum {
+  border-radius: 12px;
+  font-weight: 700;
+}
+.cs-page button.bg-plum:hover:not(:disabled), .cs-modal button.bg-plum:hover:not(:disabled) {
+  background: rgb(var(--color-plum-dark));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Order next-step buttons: one shape for every filled action, links stay links */
+.cs-actions button[class*="bg-"] {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cs-actions button[class*="bg-"] { color: #FBF6EF; }
+.cs-actions button.bg-sage, .cs-actions button.bg-honey { background: rgb(var(--color-plum)); }
+.cs-actions button[class*="bg-"]:hover:not(:disabled) { background: rgb(var(--color-plum-dark)); }
+.cs-actions button.underline { font-size: 13px; font-weight: 600; color: rgb(var(--color-plum)); text-underline-offset: 3px; }
+.cs-actions > span, .cs-actions span.text-xs { font-size: 13px; color: rgb(var(--color-muted)); }
+
+/* Page containers: every admin page's root wrapper gets the Orders page's rhythm */
+.cs-page > div[class*="p-6"] { padding: 2rem 2.5rem 3rem; }
+.cs-page > .max-w-4xl, .cs-page > .max-w-5xl { max-width: 76rem; }
+.cs-page > .max-w-2xl, .cs-page > .max-w-3xl { max-width: 52rem; }
+@media (max-width: 640px) { .cs-page > div[class*="p-6"] { padding: 1.5rem 1rem 2.5rem; } }
+.cs-page > div > h1:first-child, .cs-page > div > div:first-child > h1 { margin-bottom: 0.25rem; }
+
+/* Tables that sit straight on the page become cards */
+.cs-page table:not(.cs-plain) {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-hairline));
+  border-radius: 16px;
+  overflow: hidden;
+}
+.cs-page table:not(.cs-plain) thead th { border-bottom: 1px solid rgb(var(--color-hairline)); }
+.cs-page table:not(.cs-plain) tbody tr:last-child td { border-bottom: 0; }
+.cs-page table th:first-child, .cs-page table td:first-child { padding-inline-start: 1.25rem; }
+.cs-page table th:last-child, .cs-page table td:last-child { padding-inline-end: 1.25rem; }
+
+/* The main action beside a page title ("Add staff member", "Add ingredient"...) */
+.cs-page > div > div:first-child > button.bg-plum,
+.cs-page > div > div:first-child > a.bg-plum {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  gap: 8px;
+}
+
+/* Dark mode: plum used as a text colour needs lifting to stay readable on espresso.
+   Mixed from the active palette's own colour, so every palette keeps its hue. */
+html.dark .text-plum { color: color-mix(in srgb, rgb(var(--color-plum)) 40%, white); }
+html.dark .cs-actions button.underline { color: color-mix(in srgb, rgb(var(--color-plum)) 40%, white); }
+
+/* Form pages: each <section> is a card with a serif heading */
+.cs-page section {
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-hairline));
+  border-radius: 16px;
+  padding: 1.5rem 1.75rem 1.75rem;
+}
+.cs-page section + section { margin-top: 1.25rem; }
+.cs-page section > h2:first-child {
+  font-family: "Fraunces", serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 1rem;
+}
+html.font-urdu .cs-page section > h2:first-child { font-family: "Noto Nastaliq Urdu", serif; }
+
+/* File pickers (logo, favicon, design images) match the other buttons */
+.cs-page input[type="file"], .cs-modal input[type="file"] { font-size: 13px; color: rgb(var(--color-muted)); }
+.cs-page input[type="file"]::file-selector-button, .cs-modal input[type="file"]::file-selector-button {
+  height: 38px;
+  padding: 0 14px;
+  margin-inline-end: 12px;
+  border: 1px solid rgb(var(--color-hairline));
+  border-radius: 10px;
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-page input[type="file"]::file-selector-button:hover, .cs-modal input[type="file"]::file-selector-button:hover { background: rgb(var(--color-flour)); }
+
+/* Checkboxes and radios in the brand colour */
+input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--color-plum)); }
+
+/* The receipt preview is paper: keep app table/row styling off it */
+.cs-page article[aria-label="Receipt preview"] tbody tr:hover { background: transparent; }
+.cs-page article[aria-label="Receipt preview"] thead th { padding-top: 0.375rem; padding-bottom: 0.375rem; color: #6B5E58; }
+.cs-page article[aria-label="Receipt preview"] tbody td { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.cs-page article[aria-label="Receipt preview"] th:first-child, .cs-page article[aria-label="Receipt preview"] td:first-child { padding-inline-start: 0; }
+.cs-page article[aria-label="Receipt preview"] th:last-child, .cs-page article[aria-label="Receipt preview"] td:last-child { padding-inline-end: 0; }
+
+/* Printing a report: just the report, no app chrome */
+@media print {
+  aside, header, .no-print { display: none !important; }
+  html, body { background: #fff !important; }
+  .cs-page { overflow: visible !important; }
+  .cs-page > div[class*="p-6"] { padding: 0 !important; }
+  .cs-page .rounded-2xl { break-inside: avoid; box-shadow: none !important; }
+  .min-h-screen { min-height: 0 !important; }
+}
