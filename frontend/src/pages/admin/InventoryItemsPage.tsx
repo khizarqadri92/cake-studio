@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { inventoryApi, suppliersApi, unitsApi, purchasesApi, InventoryItem, InventoryItemPayload, Supplier, Unit, StockMovement, Purchase, PurchaseLine } from "../../api/inventory";
 import { Can } from "../../components/Can";
+import { notify } from "../../store/toastStore";
 import { fmtAmount, fmtQty } from "../../lib/format";
 import { Modal } from "../../components/Modal";
 
@@ -18,6 +19,7 @@ const REASON_LABELS: Record<string, string> = {
   wastage: "Wastage",
   adjustment: "Adjustment",
   production_use: "Used in production",
+  purchase_edit: "Purchase edited",
 };
 
 const TABS = [
@@ -98,6 +100,7 @@ export function InventoryItemsPage() {
   const [purchaseInvoice, setPurchaseInvoice] = useState("");
   const [purchaseNotes, setPurchaseNotes] = useState("");
   const [purchaseLines, setPurchaseLines] = useState<PurchaseLine[]>([emptyPurchaseLine()]);
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [purchaseSaving, setPurchaseSaving] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
@@ -112,20 +115,24 @@ export function InventoryItemsPage() {
     load();
   }, []);
 
+  // Fetch straight away (used after saving). A "needs reloading" flag alone
+  // isn't enough: the code that runs right after a save still sees the old
+  // flag, so the list on screen used to stay stale until you changed tabs.
+  const reloadPurchases = async () => {
+    const rows = await purchasesApi.list();
+    setPurchases(rows);
+    setPurchasesLoaded(true);
+  };
+  const reloadHistory = async () => {
+    const rows = await inventoryApi.movements();
+    setMovements(rows);
+    setHistoryLoaded(true);
+  };
+
   const switchTab = (next: TabKey) => {
     setTab(next);
-    if (next === "history" && !historyLoaded) {
-      inventoryApi.movements().then((rows) => {
-        setMovements(rows);
-        setHistoryLoaded(true);
-      });
-    }
-    if (next === "purchases" && !purchasesLoaded) {
-      purchasesApi.list().then((rows) => {
-        setPurchases(rows);
-        setPurchasesLoaded(true);
-      });
-    }
+    if (next === "history" && !historyLoaded) reloadHistory();
+    if (next === "purchases" && !purchasesLoaded) reloadPurchases();
   };
 
   // --- Ingredients ---
@@ -151,6 +158,7 @@ export function InventoryItemsPage() {
     try {
       if (editing) await inventoryApi.update(editing.id, form);
       else await inventoryApi.create(form);
+      notify(editing ? `${form.name} saved.` : `${form.name} added. Use "Record purchase" to bring in stock.`);
       setModalOpen(false);
       await load();
     } catch (err: any) {
@@ -191,8 +199,7 @@ export function InventoryItemsPage() {
     try {
       await inventoryApi.recordMovement({ inventory_item_id: adjustingItem.id, qty_delta, reason: adjustReason });
       setAdjustingItem(null);
-      setHistoryLoaded(false);
-      await load();
+      await Promise.all([load(), historyLoaded ? reloadHistory() : Promise.resolve()]);
     } catch (err: any) {
       setAdjustError(err?.response?.data?.detail ?? "Couldn't record this movement.");
     } finally {
@@ -295,11 +302,33 @@ export function InventoryItemsPage() {
 
   // --- Record purchase ---
   const openPurchaseModal = () => {
+    setEditingPurchaseId(null);
     setPurchaseSupplierId("");
     setPurchaseDate(new Date().toISOString().slice(0, 10));
     setPurchaseInvoice("");
     setPurchaseNotes("");
     setPurchaseLines([emptyPurchaseLine()]);
+    setPurchaseError(null);
+    setPurchaseModalOpen(true);
+  };
+
+  // Edit: reopen the form exactly as the purchase was typed (e.g. 500 g at 0.40 per g).
+  const openEditPurchase = async (p: Purchase) => {
+    let unitList = units;
+    if (unitList.length === 0) {
+      try { unitList = await unitsApi.list(); setUnits(unitList); } catch { unitList = []; }
+    }
+    setEditingPurchaseId(p.id);
+    setPurchaseSupplierId(p.supplier_id ?? "");
+    setPurchaseDate(p.purchase_date);
+    setPurchaseInvoice(p.invoice_number ?? "");
+    setPurchaseNotes(p.notes ?? "");
+    setPurchaseLines(p.items.map((l) => ({
+      inventory_item_id: l.inventory_item_id,
+      quantity: l.entered_quantity ?? l.quantity,
+      unit_price: l.entered_unit_price ?? l.unit_price,
+      unit_id: (l.entered_unit && unitList.find((u) => u.abbreviation === l.entered_unit)?.id) || null,
+    })));
     setPurchaseError(null);
     setPurchaseModalOpen(true);
   };
@@ -320,7 +349,7 @@ export function InventoryItemsPage() {
     setPurchaseSaving(true);
     setPurchaseError(null);
     try {
-      await purchasesApi.create({
+      const payload = {
         supplier_id: purchaseSupplierId || null,
         invoice_number: purchaseInvoice || null,
         purchase_date: purchaseDate || null,
@@ -329,14 +358,21 @@ export function InventoryItemsPage() {
           inventory_item_id: l.inventory_item_id, quantity: Number(l.quantity),
           unit_price: Number(l.unit_price), unit_id: l.unit_id ?? null,
         })),
-      });
+      };
+      if (editingPurchaseId) {
+        await purchasesApi.update(editingPurchaseId, payload);
+        notify("Purchase updated. Stock has been corrected to match.");
+      } else {
+        await purchasesApi.create(payload);
+        notify("Purchase recorded. Stock has been added.");
+      }
+      setEditingPurchaseId(null);
       setPurchaseModalOpen(false);
-      setPurchasesLoaded(false);
-      setHistoryLoaded(false);
-      await load();
-      if (tab === "purchases") switchTab("purchases");
+      // Refresh what's on screen now: stock levels, the purchase list, and
+      // the stock history if it has been opened.
+      await Promise.all([load(), reloadPurchases(), historyLoaded ? reloadHistory() : Promise.resolve()]);
     } catch (err: any) {
-      setPurchaseError(err?.response?.data?.detail ?? "Couldn't record this purchase.");
+      setPurchaseError(err?.response?.data?.detail ?? (editingPurchaseId ? "Couldn't save the changes to this purchase." : "Couldn't record this purchase."));
     } finally {
       setPurchaseSaving(false);
     }
@@ -455,8 +491,16 @@ export function InventoryItemsPage() {
                       <td className="p-2 border-hairline border-b text-muted">{p.invoice_number ?? "—"}</td>
                       <td className="p-2 border-hairline border-b font-medium">{fmtAmount(p.total_amount)}</td>
                       <td className="p-2 border-hairline border-b text-muted text-xs">{p.created_by_name ?? "—"}</td>
-                      <td className="p-2 border-hairline border-b text-xs text-plum underline">
-                        {expandedPurchaseId === p.id ? "Hide items" : "View items"}
+                      <td className="p-2 border-hairline border-b text-xs whitespace-nowrap">
+                        <span className="text-plum underline">{expandedPurchaseId === p.id ? "Hide items" : "View items"}</span>
+                        <Can permission="inventory.button.edit_purchase">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditPurchase(p); }}
+                            className="ml-3 text-plum underline font-semibold"
+                          >
+                            Edit
+                          </button>
+                        </Can>
                       </td>
                     </tr>
                     {expandedPurchaseId === p.id && (
@@ -826,7 +870,7 @@ export function InventoryItemsPage() {
 
       {/* --- Record purchase modal (multi-line, with prices) --- */}
       {purchaseModalOpen && (
-        <Modal title="Record purchase" onClose={() => setPurchaseModalOpen(false)} wide>
+        <Modal title={editingPurchaseId ? "Edit purchase" : "Record purchase"} onClose={() => { setPurchaseModalOpen(false); setEditingPurchaseId(null); }} wide>
           <div className="space-y-4">
             {purchaseError && <p className="text-sm text-plum bg-plum/5 border border-plum/20 rounded-lg px-3 py-2">{purchaseError}</p>}
 
@@ -913,7 +957,8 @@ export function InventoryItemsPage() {
                     if (!item || !opt || !qty || opt.to_item_unit === 1) return null;
                     return (
                       <p className="text-xs text-muted mt-1">
-                        {qty} {opt.abbreviation} = <span className="text-ink/80">{fmtQty(qty * opt.to_item_unit)} {item.unit_name}</span> will be added to {item.name}'s stock
+                        {qty} {opt.abbreviation} = <span className="text-ink/80">{fmtQty(qty * opt.to_item_unit)} {item.unit_name}</span>{" "}
+                        {editingPurchaseId ? `of ${item.name} in this purchase (stock changes only by the difference)` : `will be added to ${item.name}'s stock`}
                       </p>
                     );
                   })()}
@@ -932,7 +977,7 @@ export function InventoryItemsPage() {
               <span className="text-sm font-medium">Total: {fmtAmount(purchaseTotal)}</span>
               <div className="flex gap-2">
                 <button onClick={doRecordPurchase} disabled={purchaseSaving} className="bg-plum text-cream px-4 py-2 rounded-lg text-sm disabled:opacity-50">
-                  {purchaseSaving ? "Saving…" : "Record purchase"}
+                  {purchaseSaving ? "Saving…" : editingPurchaseId ? "Save changes" : "Record purchase"}
                 </button>
                 <button onClick={() => setPurchaseModalOpen(false)} className="border border-hairline px-4 py-2 rounded-lg text-sm text-ink/70">
                   Cancel

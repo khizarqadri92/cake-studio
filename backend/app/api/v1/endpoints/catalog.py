@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.core.database import get_session
-from app.core.permissions import require_permission
+from app.core.permissions import require_any_permission, require_permission
 from app.services.audit import log_audit
 from app.models.catalog import CakeFlavor, CakeFilling, CakeFrosting, CakeShape, CakeSize, Theme, CakeAddon, CakeBox, CakeTier, CakeColor
 
@@ -57,7 +57,9 @@ def build_catalog_router(model_cls, schema_cls, permission_prefix: str, audit_la
     @router.get("", response_model=list[model_cls])
     def list_items(
         session: Session = Depends(get_session),
-        _staff_id: str = Depends(require_permission(f"{permission_prefix}.page.view")),
+        # Read: whoever manages this list, or anyone working with orders (the
+        # order form needs it). Create / edit / delete stay restricted below.
+        _staff_id: str = Depends(require_any_permission(f"{permission_prefix}.page.view", "orders.page.view")),
     ):
         return session.exec(select(model_cls).order_by(model_cls.sort_order, model_cls.name)).all()
 

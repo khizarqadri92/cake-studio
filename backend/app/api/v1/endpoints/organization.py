@@ -10,7 +10,7 @@ from app.models.organization import Organization
 
 router = APIRouter()
 
-UPLOAD_DIR = Path(__file__).resolve().parents[4] / "static" / "uploads"
+from app.core.paths import UPLOAD_DIR
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/x-icon", "image/svg+xml", "image/webp"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2MB
 

@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { accessApi, Role, staffApi, StaffMember, StaffCreatePayload } from "../../api/access";
 import { branchesApi, Branch } from "../../api/branches";
 import { Can } from "../../components/Can";
+import { notify } from "../../store/toastStore";
 import { Modal } from "../../components/Modal";
 import { useAuthStore } from "../../store/authStore";
 
@@ -34,11 +35,13 @@ const emptyForm: StaffCreatePayload = {
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // Wrapping the box in its <label> ties them together: screen readers read the
+  // label, and clicking it puts the cursor in the box.
   return (
-    <div>
-      <label className="block text-xs font-medium text-ink/70 mb-1">{label}</label>
+    <label className="block">
+      <span className="block text-xs font-medium text-ink/70 mb-1">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -170,6 +173,7 @@ export function StaffPage() {
   const [editForm, setEditForm] = useState<ProfileFields>(emptyForm);
   const [editRoleId, setEditRoleId] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = async () => {
     const [s, r, b] = await Promise.all([staffApi.list(), accessApi.listRoles(), branchesApi.list()]);
@@ -196,14 +200,17 @@ export function StaffPage() {
     setCreating(true);
     setError(null);
     try {
-      const payload: StaffCreatePayload = {
-        ...form,
+      // Leave out fields that weren't filled in (an empty date isn't a date).
+      const filled = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== "" && v !== null && v !== undefined));
+      const payload = {
+        ...filled,
         role_ids: selectedRoleId ? [selectedRoleId] : [],
         branch_id: form.branch_id || undefined,
         basic_salary: form.basic_salary || undefined,
-      };
+      } as StaffCreatePayload;
       await staffApi.create(payload);
       setAddOpen(false);
+      notify(`Staff account created for ${form.full_name}. They can sign in with ${form.email}.`);
       await load();
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Couldn't create staff account.");
@@ -218,6 +225,7 @@ export function StaffPage() {
   };
 
   const openEdit = (s: StaffMember) => {
+    setEditError(null);
     setEditingStaff(s);
     setEditForm({
       full_name: s.full_name,
@@ -243,6 +251,7 @@ export function StaffPage() {
   const saveEdit = async () => {
     if (!editingStaff) return;
     setSavingEdit(true);
+    setEditError(null);
     try {
       await staffApi.updateProfile(editingStaff.id, {
         ...editForm,
@@ -252,8 +261,11 @@ export function StaffPage() {
       if (hasPermission("staff.field.role.edit")) {
         await staffApi.setRoles(editingStaff.id, editRoleId ? [editRoleId] : []);
       }
+      notify(`Changes to ${editForm.full_name || editingStaff.full_name} saved.`);
       setEditingStaff(null);
       await load();
+    } catch (err: any) {
+      setEditError(err?.response?.data?.detail ?? "Couldn't save the changes. Please try again.");
     } finally {
       setSavingEdit(false);
     }
@@ -379,6 +391,7 @@ export function StaffPage() {
             </Can>
 
             <div className="flex gap-2 pt-2 border-t border-hairline">
+              {editError && <p role="alert" className="w-full text-sm text-plum bg-plum/5 border border-plum/20 rounded-lg px-3 py-2">{editError}</p>}
               <button
                 onClick={saveEdit}
                 disabled={savingEdit}

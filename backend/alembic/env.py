@@ -10,7 +10,9 @@ from app.models import system, staff, permissions, orders, inventory, accounting
 from app.core.config import settings
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Alembic's config reader treats "%" as special, so escape it. Passwords with
+# characters like @ or % are stored URL-encoded (e.g. %40) and must survive.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

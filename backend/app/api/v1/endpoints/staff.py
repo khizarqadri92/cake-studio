@@ -1,6 +1,20 @@
 import uuid
 from datetime import date, datetime, timezone
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
+
+
+class _BlankMeansNone(BaseModel):
+    """Forms send "" for fields left empty. For optional fields that means
+    "not provided" - otherwise an empty date of birth is rejected as an
+    invalid date and the whole form fails."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_to_none(cls, data):
+        if isinstance(data, dict):
+            return {k: (None if isinstance(v, str) and v.strip() == "" and k not in ("full_name", "email", "password") else v)
+                    for k, v in data.items()}
+        return data
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.core.database import get_session
@@ -41,7 +55,7 @@ class StaffOut(BaseModel):
     branch_name: str | None
 
 
-class StaffCreate(BaseModel):
+class StaffCreate(_BlankMeansNone):
     full_name: str
     email: EmailStr
     password: str
@@ -64,7 +78,7 @@ class StaffCreate(BaseModel):
     branch_id: uuid.UUID | None = None
 
 
-class StaffUpdateProfile(BaseModel):
+class StaffUpdateProfile(_BlankMeansNone):
     full_name: str
     phone: str | None = None
     job_title: str | None = None

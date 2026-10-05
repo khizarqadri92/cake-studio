@@ -1,110 +1,120 @@
 # Installing Cake Studio on a client's computer
 
-One Windows PC in the shop runs Cake Studio. Everyone else — the counter PC,
-bakers' tablets, riders' phones — opens it in a web browser over the shop's
-Wi-Fi. Nothing is installed on those devices.
+Three things, in this order:
 
-```
-  Tablets / phones / other PCs  ──Wi-Fi──►  Server PC  (Cake Studio + PostgreSQL)
-      http://192.168.1.20:8000                runs by itself, starts at boot,
-                                              backs up every night
-```
+1. **PostgreSQL** — installed on the client's PC (free, official installer).
+2. **Your database** — backed up on your PC, restored on the client's PC by hand.
+3. **`CakeStudio-Setup-1.0.0.exe`** — installs the app and connects it to that database.
+
+The counter PC, bakers' tablets and riders' phones then just open Cake Studio
+in a browser over the shop's Wi-Fi.
 
 ---
 
-## 1. On your computer: make the package
+## On your computer
+
+### Back up your database
 
 ```powershell
-cd E:\Projects\cake-studio\deploy
-.\make-package.ps1
-```
-
-This builds the web app and creates **`E:\Projects\cake-studio-deploy.zip`**.
-It leaves out your development files, your `.env` secrets, backups and test photos.
-
-**Optional — bring your prepared setup** (organisation, logo, cake menu, staff):
-first clear test data with `python -m scripts.reset_for_deployment --keep-staff YOUR-ADMIN-EMAIL`,
-then save the database:
-
-```powershell
-$env:Path += ";C:\Program Files\PostgreSQL\18\bin"
-pg_dump -h localhost -U cake -d cake_studio --no-owner -f E:\Projects\client-setup.sql
-```
-
-Take `client-setup.sql` with the zip. Without it the client starts with a fresh
-system and the default roles, and you set everything up on their PC.
-
-## 2. On the client's computer: install the two prerequisites
-
-1. **Python 3.12 or newer** — python.org. On the first screen tick
-   **"Add python.exe to PATH"**.
-2. **PostgreSQL 16 or newer** — postgresql.org. Remember the password you set
-   for the `postgres` user; the installer asks for it once.
-
-## 3. Install Cake Studio
-
-1. Unzip `cake-studio-deploy.zip` to **`C:\CakeStudio`** (so you have `C:\CakeStudio\cake-studio\backend`, `deploy`, `frontend`).
-2. Open **PowerShell as Administrator** (Start → type PowerShell → right-click → *Run as administrator*).
-3. Run:
-
-```powershell
-cd C:\CakeStudio\cake-studio\deploy
+cd E:\Projects\cake-studio\installer
 Set-ExecutionPolicy -Scope Process Bypass
-.\install.ps1
+.\export-database.ps1                      # -> E:\Projects\cake_studio.sql
 ```
 
-With your prepared setup instead:
+(Want to remove test orders first? `cd ..\backend`, `.\venv\Scripts\Activate.ps1`,
+`python -m scripts.reset_for_deployment --keep-staff YOUR-ADMIN-EMAIL`.)
+
+### Build the installer
+
+One-time: install **Inno Setup 6** (free) from https://jrsoftware.org/isdl.php
 
 ```powershell
-.\install.ps1 -RestoreFrom C:\CakeStudio\client-setup.sql
+.\build-installer.ps1 -Version 1.0.0       # -> installer\output\CakeStudio-Setup-1.0.0.exe
 ```
 
-It takes a few minutes (it downloads the Python packages, so it needs internet
-once). At the end it prints the address for tablets and phones, e.g.
-`http://192.168.1.20:8000`.
+It also packs your **logo and favicon** (they're files, not in the database).
 
-What the installer sets up: the database and its own user with a random
-password · a random security key in `backend\.env` · the tables · a Windows
-Firewall rule so tablets can connect · a **"Cake Studio Server"** task that
-starts the server at boot and restarts it if it stops · a **"Cake Studio
-Backup"** task every night at 11 pm.
+Copy **`cake_studio.sql`** and **`CakeStudio-Setup-1.0.0.exe`** to the client's PC (USB drive is fine).
 
-## 4. First sign-in and handover checklist
+---
 
-- [ ] Open the address on the server PC and on one tablet.
-- [ ] Fresh install: sign in as `owner@cakestudio.local` / `change-me` and **change the password immediately**.
-      (With `-RestoreFrom`, use the admin login from your prepared database.)
-- [ ] Create the client's own Super Admin under **Staff**, and remove or rename yours.
-- [ ] **Organization**: company name, logo, address, currency, time zone.
-- [ ] **Order setup**: replace the sample flavours, sizes and add-ons with the client's menu.
-- [ ] **System setup → Business date**: usually **Use system date**.
-- [ ] **System setup → Kitchen ticket printing**: enter the printer's IP and press **Test print**.
-- [ ] In the **Wi-Fi router**, give the server PC a **fixed IP** (DHCP reservation), so the tablet address never changes.
-- [ ] Set the server PC to **never sleep** (Settings → Power), or tablets lose the connection.
+## On the client's computer
+
+### Step 1 — Install PostgreSQL
+
+1. Download it from https://www.postgresql.org/download/windows/ and run the installer.
+2. Keep the **default options** (port **5432**). Untick *Stack Builder* at the end.
+3. **Write down the password** you set for the `postgres` user.
+
+### Step 2 — Restore your database
+
+Open **PowerShell** and run (change `18` to the PostgreSQL version you installed,
+and the path to where you copied the file):
+
+```powershell
+$pg = "C:\Program Files\PostgreSQL\18\bin"
+& "$pg\psql.exe" -h localhost -U postgres -c "CREATE DATABASE cake_studio"
+& "$pg\psql.exe" -h localhost -U postgres -d cake_studio -f "C:\Users\$env:USERNAME\Desktop\cake_studio.sql"
+```
+
+Each command asks for the `postgres` password. The second prints a lot of
+lines — that's normal. (A warning about the "console code page" is harmless.)
+
+### Step 3 — Install Cake Studio
+
+1. Double-click **`CakeStudio-Setup-1.0.0.exe`** → **Yes**.
+   If *"Windows protected your PC"* appears: **More info → Run anyway**.
+2. **Database connection** page — already filled in: server `localhost`, port
+   `5432`, database `cake_studio`, user `postgres`. Type the **`postgres`
+   password** and click **Next**. It checks the connection (a few seconds) and
+   says plainly if anything's wrong.
+3. **Shop settings** — keep `Asia/Karachi` and port `8000`, **Next**, **Install**.
+4. The last screen shows the **address for tablets and phones**
+   (e.g. `http://192.168.1.20:8000`). Click **Finish** — Cake Studio opens.
+5. **Sign in with your usual account** — it came with your database.
+
+### After installing (once)
+
+- [ ] **Wi-Fi router:** give this PC a **fixed IP** so the tablet address never changes.
+- [ ] **Power settings:** set the PC to **never sleep**.
+- [ ] **System setup:** printer IP + **Test print**; **Business date → Use system date**.
+- [ ] On each tablet/phone: open the address → **Add to Home screen**.
+
+---
 
 ## Day to day
 
-| Task | How |
+Nothing: Cake Studio starts with Windows and restarts itself if it stops.
+Backups run every night at 11 pm into `C:\ProgramData\CakeStudio\backups`
+(Start menu → **Back up now** for one any time). **Copy one to a USB drive or
+cloud folder every week.**
+
+| If… | Do this |
 |---|---|
-| Server stopped? | Restart the PC, or run `Start-ScheduledTask "Cake Studio Server"` as Administrator |
-| See what happened | `C:\CakeStudio\cake-studio\backend\logs\server.log` |
-| Back up now | `C:\CakeStudio\cake-studio\deploy\backup.ps1` |
-| Backups | `backend\backups` — last 30 days. **Copy one to a USB drive or cloud folder every week**: backups on the same PC don't survive a failed disk. |
-| Restore a backup | Stop the server task, then `psql -U cake -h localhost -d cake_studio -f backend\backups\<file>.sql` into an empty database |
-| Can't sign in | `cd backend; .\venv\Scripts\Activate.ps1; python -m scripts.accounts --test-login EMAIL` |
+| The app won't open | Restart the PC; still not? See `C:\ProgramData\CakeStudio\logs\server.log` |
+| Tablets can't connect | Check the PC is awake, on the same Wi-Fi, and its IP hasn't changed |
+| Restore a backup | Each backup `.zip` contains `database.sql`: restore it with Step 2 into a fresh database |
 
-## Updating to a new version
+## Updating
 
-1. On your PC: `.\make-package.ps1` again.
-2. On the client PC, as Administrator: run `deploy\backup.ps1` first.
-3. Stop the server: `Stop-ScheduledTask "Cake Studio Server"`.
-4. Unzip the new package over `C:\CakeStudio` (it never contains `.env`, backups or photos, so those are kept).
-5. Run `.\install.ps1` again — it keeps the existing database and data, adds any new tables and restarts the server.
+Run the new `CakeStudio-Setup-<version>.exe`. It backs up first, keeps the
+connection and settings, brings the tables up to date, and restarts.
+
+## If an install fails
+
+Fix what the message says and **run the installer again** — after a failed
+attempt it asks for the database details again. Install logs are in
+`C:\ProgramData\CakeStudio\logs`.
+
+## Uninstalling
+
+Settings → Apps → Cake Studio → Uninstall. **Your PostgreSQL database is never
+deleted.** It asks whether to also remove Cake Studio's own files in
+`C:\ProgramData\CakeStudio` (default: keep).
 
 ## Good to know
 
-- This setup is for use **inside the shop's network**. Putting it on the internet
-  (for customers or staff at home) needs HTTPS and a proper web server in front;
-  don't just open the port on the router.
-- The `backend\.env` file holds the database password and security key. Don't
-  share it or copy it to other machines.
+- For use **inside the shop's network** only. Reaching it from the internet
+  needs HTTPS and a proper web server in front.
+- `installer\cache`, `installer\build` and `installer\output` are generated;
+  don't commit them.

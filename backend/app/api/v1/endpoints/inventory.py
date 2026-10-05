@@ -436,17 +436,13 @@ class PurchaseOut(BaseModel):
     items: list[PurchaseLineOut]
 
 
-@router.post("/purchases", response_model=PurchaseOut)
-def create_purchase(
-    payload: PurchaseIn,
-    session: Session = Depends(get_session),
-    staff_id: str = Depends(require_permission("inventory.button.adjust_stock")),
-):
+def _check_purchase_lines(session: Session, payload: "PurchaseIn"):
+    """Validates a purchase's lines and resolves each line's unit. Used by both
+    recording and editing, so both follow exactly the same rules."""
     if not payload.items:
         raise HTTPException(status_code=400, detail="Add at least one item to the purchase")
     if payload.supplier_id and not session.get(Supplier, payload.supplier_id):
         raise HTTPException(status_code=400, detail="Unknown supplier")
-
     items_with_records = []
     for line in payload.items:
         item = session.get(InventoryItem, line.inventory_item_id)
@@ -462,6 +458,38 @@ def create_purchase(
                 detail=f"That unit can't be used for {item.name} (stocked in {options[0][1] or 'its own unit'})",
             )
         items_with_records.append((line, item, chosen))
+    return items_with_records
+
+
+def _purchase_out(session: Session, purchase: "Purchase") -> "PurchaseOut":
+    lines = session.exec(select(PurchaseItem).where(PurchaseItem.purchase_id == purchase.id)).all()
+    supplier = session.get(Supplier, purchase.supplier_id) if purchase.supplier_id else None
+    staff = session.get(Staff, purchase.created_by_staff_id)
+    line_outs = []
+    for line in lines:
+        item = session.get(InventoryItem, line.inventory_item_id)
+        line_outs.append(PurchaseLineOut(
+            inventory_item_id=line.inventory_item_id, inventory_item_name=item.name if item else "Unknown item",
+            quantity=line.quantity, unit=unit_label(session, item) if item else "",
+            unit_price=line.unit_price, line_total=line.line_total,
+            entered_quantity=line.entered_quantity, entered_unit=line.entered_unit,
+            entered_unit_price=line.entered_unit_price,
+        ))
+    return PurchaseOut(
+        id=purchase.id, supplier_id=purchase.supplier_id, supplier_name=supplier.name if supplier else None,
+        invoice_number=purchase.invoice_number, purchase_date=purchase.purchase_date, notes=purchase.notes,
+        total_amount=purchase.total_amount, created_by_name=staff.full_name if staff else None,
+        created_at=purchase.created_at, items=line_outs,
+    )
+
+
+@router.post("/purchases", response_model=PurchaseOut)
+def create_purchase(
+    payload: PurchaseIn,
+    session: Session = Depends(get_session),
+    staff_id: str = Depends(require_permission("inventory.button.adjust_stock")),
+):
+    items_with_records = _check_purchase_lines(session, payload)
 
     processing_date = payload.purchase_date or get_processing_date(session)
     purchase = Purchase(
@@ -633,3 +661,95 @@ def list_movements(
 ):
     rows = session.exec(select(StockMovement).order_by(StockMovement.created_at.desc()).limit(limit)).all()
     return [_movement_to_out(session, m) for m in rows]
+
+
+
+@router.put("/purchases/{purchase_id}", response_model=PurchaseOut)
+def update_purchase(
+    purchase_id: uuid.UUID,
+    payload: PurchaseIn,
+    session: Session = Depends(get_session),
+    staff_id: str = Depends(require_permission("inventory.button.edit_purchase")),
+):
+    """Correct a recorded purchase (quantities, prices, units, items, supplier,
+    invoice, date, notes). Stock moves by the DIFFERENCE only, each change is
+    logged as "purchase_edit", and an edit that would take stock below zero
+    (because some of it was already used) is refused with a clear reason."""
+    purchase = session.get(Purchase, purchase_id)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    items_with_records = _check_purchase_lines(session, payload)
+
+    old_lines = session.exec(select(PurchaseItem).where(PurchaseItem.purchase_id == purchase.id)).all()
+    old_qty: dict[uuid.UUID, float] = {}
+    for ln in old_lines:
+        old_qty[ln.inventory_item_id] = old_qty.get(ln.inventory_item_id, 0.0) + ln.quantity
+    new_lines = []
+    new_qty: dict[uuid.UUID, float] = {}
+    for line, item, (_, entered_abbr, to_item_unit) in items_with_records:
+        stock_qty = round(line.quantity * to_item_unit, 6)
+        new_lines.append((line, item, entered_abbr, to_item_unit, stock_qty))
+        new_qty[item.id] = new_qty.get(item.id, 0.0) + stock_qty
+
+    # Stock can't go below zero: whatever was already used stays used.
+    from app.services.number_format import get_decimals
+    qty_dp = get_decimals(session)[1]
+    problems = []
+    deltas: dict[uuid.UUID, float] = {}
+    for item_id in set(old_qty) | set(new_qty):
+        delta = round(new_qty.get(item_id, 0.0) - old_qty.get(item_id, 0.0), 6)
+        if abs(delta) < 1e-9:
+            continue
+        deltas[item_id] = delta
+        item = session.get(InventoryItem, item_id)
+        if item and item.qty_on_hand + delta < -1e-9:
+            unit = unit_label(session, item)
+            problems.append(
+                f"{item.name}: only {round(item.qty_on_hand, qty_dp):g} {unit} is left in stock (the rest has been used), "
+                f"so this purchase can be reduced by at most {round(item.qty_on_hand, qty_dp):g} {unit}"
+            )
+    if problems:
+        raise HTTPException(status_code=400, detail="This change would take stock below zero. " + "; ".join(problems))
+
+    before = {"total_amount": purchase.total_amount, "supplier_id": str(purchase.supplier_id) if purchase.supplier_id else None,
+              "invoice_number": purchase.invoice_number, "purchase_date": purchase.purchase_date.isoformat(),
+              "lines": [{"item": str(l.inventory_item_id), "quantity": l.quantity, "unit_price": l.unit_price} for l in old_lines]}
+
+    for ln in old_lines:
+        session.delete(ln)
+    session.flush()
+    for line, item, entered_abbr, to_item_unit, stock_qty in new_lines:
+        session.add(PurchaseItem(
+            id=uuid.uuid4(), purchase_id=purchase.id, inventory_item_id=item.id,
+            quantity=stock_qty, unit_price=round(line.unit_price / to_item_unit, 6),
+            line_total=round_amount(session, line.quantity * line.unit_price),
+            entered_quantity=line.quantity, entered_unit=entered_abbr, entered_unit_price=line.unit_price,
+        ))
+    today = get_processing_date(session)
+    for item_id, delta in deltas.items():
+        item = session.get(InventoryItem, item_id)
+        new_price = next((round(l.unit_price / t, 6) for l, it, _, t, _ in new_lines if it.id == item_id), None)
+        session.add(StockMovement(
+            inventory_item_id=item_id, qty_delta=delta, reason="purchase_edit", unit_price=new_price,
+            purchase_id=purchase.id, processing_date=today, created_by_staff_id=uuid.UUID(staff_id),
+        ))
+        item.qty_on_hand = round(item.qty_on_hand + delta, 6)
+        session.add(item)
+
+    purchase.supplier_id = payload.supplier_id
+    purchase.invoice_number = payload.invoice_number
+    purchase.notes = payload.notes
+    if payload.purchase_date:
+        purchase.purchase_date = payload.purchase_date
+    purchase.total_amount = round_amount(session, sum(round_amount(session, l.quantity * l.unit_price) for l, *_ in new_lines))
+    session.add(purchase)
+    session.commit()
+    session.refresh(purchase)
+
+    log_audit(
+        session, "purchase.edited", actor_staff_id=uuid.UUID(staff_id), target_type="purchase", target_id=str(purchase.id),
+        details={"before": before, "after": {"total_amount": purchase.total_amount,
+                 "lines": [{"item": str(it.id), "quantity": q, "entered": f"{l.quantity:g} {a}"} for l, it, a, _, q in new_lines]},
+                 "stock_changes": {str(k): v for k, v in deltas.items()}},
+    )
+    return _purchase_out(session, purchase)

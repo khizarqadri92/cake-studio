@@ -102,6 +102,14 @@ export const purchasesApi = {
     notes: string | null;
     items: { inventory_item_id: string; quantity: number; unit_price: number }[];
   }) => api.post<Purchase>("/inventory/purchases", payload).then((r) => r.data),
+  /** Correct a recorded purchase; stock is adjusted by the difference. */
+  update: (id: string, payload: {
+    supplier_id: string | null;
+    invoice_number: string | null;
+    purchase_date: string | null;
+    notes: string | null;
+    items: { inventory_item_id: string; quantity: number; unit_price: number; unit_id?: string | null }[];
+  }) => api.put<Purchase>(`/inventory/purchases/${id}`, payload).then((r) => r.data),
 };
 
 export const inventoryApi = {

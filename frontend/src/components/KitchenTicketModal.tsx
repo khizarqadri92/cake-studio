@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Printer, Download, ExternalLink } from "lucide-react";
 import { Modal } from "./Modal";
 import { ordersApi } from "../api/orders";
-import { mediaUrl } from "../api/client";
+import { mediaUrl, failureReason } from "../api/client";
 import { printTicketInBrowser } from "../lib/printTicket";
 
 /** The kitchen ticket that goes with a baker's request: what to bake, no prices. */
@@ -22,7 +22,7 @@ export function KitchenTicketModal({ orderId, onClose }: { orderId: string; onCl
         url = URL.createObjectURL(blob);
         setPdfUrl(url);
       })
-      .catch((err) => live && setError(err?.response?.data?.detail ?? "Couldn't load the kitchen ticket."));
+      .catch(async (err) => live && setError(`Couldn't load the kitchen ticket: ${await failureReason(err)}.`));
     return () => { live = false; if (url) URL.revokeObjectURL(url); };
   }, [orderId]);
 

@@ -17,7 +17,8 @@ from app.models.organization import Organization
 from app.models.system import SystemConfig
 from app.services.number_format import get_decimals
 
-STATIC_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
+from app.core.paths import STATIC_DIR as _STATIC_DIR
+STATIC_ROOT = str(_STATIC_DIR)
 
 
 # ---------------------------------------------------------------- formatting
@@ -169,7 +170,11 @@ def build_receipt(session: Session, order) -> ReceiptData:
         cake_price = item.unit_price * item.quantity
         lines.append(ReceiptLine("Cake", cake_summary, str(item.quantity), money(cake_price)))
         for a in item.addons:
-            lines.append(ReceiptLine(a.name or "Add-on", "", str(a.quantity), money(a.unit_price * a.quantity)))
+            # Order data gives add-ons as plain records: {"name", "quantity", "unit_price"}
+            get = (lambda k: a.get(k)) if isinstance(a, dict) else (lambda k: getattr(a, k, None))
+            qty = get("quantity") or 1
+            price = get("unit_price") or 0
+            lines.append(ReceiptLine(get("name") or "Add-on", "", str(qty), money(price * qty)))
 
     status = str(getattr(order.status, "value", order.status))
     is_delivery = str(getattr(order.fulfillment_type, "value", order.fulfillment_type)) == "delivery"
