@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Settings, ShieldCheck, Users, Building2, MapPin, KeyRound, History, ScrollText, ChevronDown, Cake, ClipboardList, Package, BarChart3, LayoutDashboard } from "lucide-react";
+import { Settings, ShieldCheck, Users, Building2, MapPin, KeyRound, History, ScrollText, ChevronDown, Cake, ClipboardList, Package, BarChart3, Contact, LayoutDashboard } from "lucide-react";
 import { Can } from "../components/Can";
 import { BrandLogo } from "../components/BrandLogo";
 import { CATALOG_CONFIGS } from "../config/catalogConfigs";
@@ -17,6 +17,7 @@ export function Sidebar() {
   const NAV_ITEMS = [
     { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "" }, // everyone
     { to: "/admin/orders", label: "Orders", icon: ClipboardList, permission: "orders.page.view" },
+    { to: "/admin/customers", label: "Customers", icon: Contact, permission: "customers.page.view" },
     { to: "/admin/inventory", label: "Inventory", icon: Package, permission: "inventory.page.view" },
     { to: "/admin/reports", label: "Reports", icon: BarChart3, permission: "reports.page.view" },
     { to: "/admin/organization", label: t("nav.organization"), icon: Building2, permission: "organization.page.view" },
@@ -40,7 +41,11 @@ export function Sidebar() {
     <aside className="w-[248px] bg-plum-dark text-cream flex flex-col shrink-0 h-screen sticky top-0">
       <div className="px-7 pt-7 pb-6">
         <BrandLogo size={56} textClassName="font-display text-[26px] font-semibold tracking-tight leading-none block text-cream" />
-        <p className="text-xs text-cream/70 mt-1.5">{t("login.internalSystem")}</p>
+        <p className="text-xs text-cream/70 mt-1.5">
+          {t("login.internalSystem")}
+          {/* Which version is installed - set by build-installer.ps1 */}
+          {import.meta.env.VITE_APP_VERSION && <span className="ml-1.5 opacity-80">· v{import.meta.env.VITE_APP_VERSION}</span>}
+        </p>
       </div>
 
       <nav className="flex-1 px-4 pb-4 flex flex-col gap-1 overflow-y-auto" aria-label="Main">

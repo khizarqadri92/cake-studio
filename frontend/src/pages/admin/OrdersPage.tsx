@@ -6,9 +6,11 @@ import { customersApi, Customer } from "../../api/customers";
 import { createCatalogApi, CatalogItem } from "../../api/catalog";
 import { deliveryZonesApi, DeliveryZone } from "../../api/delivery";
 import { Can } from "../../components/Can";
-import { fmtAmount, fmtQty, amountInputValue } from "../../lib/format";
+import { fmtAmount, fmtQty, amountInputValue, fmtTime } from "../../lib/format";
+import { TimeSelect } from "../../components/TimeSelect";
 import { OrderJourneyPanel, STATUS_TONE } from "../../components/OrderJourneyPanel";
 import { ReceiptModal, ReceiptContext } from "../../components/ReceiptModal";
+import { notify } from "../../store/toastStore";
 import { KitchenTicketModal } from "../../components/KitchenTicketModal";
 import { printTicketInBrowser } from "../../lib/printTicket";
 import { Receipt, Printer, ChefHat, Wheat } from "lucide-react";
@@ -303,7 +305,12 @@ export function OrdersPage() {
   };
 
   const openAdd = async () => {
-    await ensureCatalogsLoaded();
+    try {
+      await ensureCatalogsLoaded();
+    } catch (err: any) {
+      notify(`Couldn't open the order form: ${err?.response?.data?.detail ?? "the cake options didn't load"}. Ask an administrator to check your permissions.`, "error");
+      return;
+    }
     setEditingId(null);
     setForm(emptyForm());
     resetCustomerPicker();
@@ -312,8 +319,14 @@ export function OrdersPage() {
   };
 
   const openEdit = async (orderId: string) => {
-    await ensureCatalogsLoaded();
-    const detail = await ordersApi.get(orderId);
+    let detail;
+    try {
+      await ensureCatalogsLoaded();
+      detail = await ordersApi.get(orderId);
+    } catch (err: any) {
+      notify(`Couldn't open this order for editing: ${err?.response?.data?.detail ?? "it didn't load"}.`, "error");
+      return;
+    }
     setEditingId(orderId);
     setForm({
       customer_id: detail.customer_id,
@@ -1255,7 +1268,7 @@ export function OrdersPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-ink/70 mb-1">Delivery time (optional)</label>
-                  <input className={inputClass} placeholder="e.g. 2:00 PM" value={form.delivery_time ?? ""} onChange={(e) => setForm({ ...form, delivery_time: e.target.value })} />
+                  <TimeSelect className={inputClass} value={form.delivery_time} date={form.delivery_date} onChange={(t) => setForm({ ...form, delivery_time: t })} />
                 </div>
 
                 {form.fulfillment_type === "delivery" && (
@@ -1408,7 +1421,7 @@ export function OrdersPage() {
               <p className="text-xs text-muted mb-1">Fulfillment</p>
               <p className="text-ink/80">
                 {confirmOrder.fulfillment_type === "delivery" ? "Delivery" : "Pickup"} — {confirmOrder.delivery_date}
-                {confirmOrder.delivery_time ? ` at ${confirmOrder.delivery_time}` : ""}
+                {confirmOrder.delivery_time ? ` at ${fmtTime(confirmOrder.delivery_time)}` : ""}
               </p>
               {confirmOrder.delivery_address && <p className="text-muted text-xs">{confirmOrder.delivery_address}</p>}
             </div>

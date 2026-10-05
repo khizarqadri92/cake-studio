@@ -43,8 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-STATIC_DIR.mkdir(exist_ok=True)
+from app.core.paths import STATIC_DIR
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import os
 import sys
 from datetime import datetime, timezone
 
@@ -63,6 +64,15 @@ def blockers(staff: Staff, policy) -> list[str]:
 
 
 def ask_password(policy) -> str:
+    # The Windows installer passes the first admin's password this way (never on
+    # the command line, where other programs could see it).
+    given = os.environ.pop("CAKESTUDIO_ADMIN_PASSWORD", None)
+    if given is not None:
+        try:
+            validate_password(given, policy)
+        except HTTPException as exc:
+            sys.exit("Password rejected: " + "; ".join(exc.detail if isinstance(exc.detail, list) else [str(exc.detail)]))
+        return given
     while True:
         first = getpass.getpass("New password (hidden): ")
         try:
@@ -198,7 +208,7 @@ def main() -> int:
             email = args.create.strip().lower()
             if session.exec(select(Staff).where(Staff.email == email)).first():
                 sys.exit(f"{email} already exists. Use --reset {email} instead.")
-            name = (args.name or "").strip() or input("Full name: ").strip()
+            name = (args.name or "").strip() or (input("Full name: ").strip() if sys.stdin.isatty() else "")
             if not name:
                 sys.exit("A name is needed.")
             staff = Staff(full_name=name, email=email, hashed_password=hash_password(ask_password(policy)),

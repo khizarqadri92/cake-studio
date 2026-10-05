@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
 
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "static" / "uploads"
+from app.core.paths import UPLOAD_DIR
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/x-icon", "image/svg+xml", "image/webp"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5MB - reference photos tend to be larger than logos
 

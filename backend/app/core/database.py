@@ -1,7 +1,9 @@
 from sqlmodel import SQLModel, create_engine, Session
 from app.core.config import settings
 
-engine = create_engine(settings.DATABASE_URL, echo=False)
+# pool_pre_ping: check a connection is alive before using it, so the app
+# reconnects by itself after the database restarts (restore, Windows update...).
+engine = create_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True)
 
 
 def init_db() -> None:

@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { X, Phone, MapPin, Store, FileText } from "lucide-react";
 import type { OrderDetail, OrderStatus } from "../api/orders";
-import { fmtAmount } from "../lib/format";
+import { fmtAmount, fmtTime } from "../lib/format";
 
 export const STATUS_TONE: Record<OrderStatus, string> = {
   draft: "bg-[#F1ECE6] text-[#5E534D]",
@@ -93,7 +93,7 @@ export function OrderJourneyPanel({
   const cake = [order.item?.cake_tier_name, order.item?.cake_flavor_name, order.item?.cake_size_name].filter(Boolean).join(", ");
   const due = new Date(`${order.delivery_date}T00:00:00`);
   const dueText = `${dueLabel ?? (isNaN(due.getTime()) ? order.delivery_date : due.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}${
-    order.delivery_time ? `, ${order.delivery_time.slice(0, 5)}` : ""
+    order.delivery_time ? `, ${fmtTime(order.delivery_time)}` : ""
   }`;
 
   return (

@@ -11,6 +11,7 @@ import { AuditTrailPage } from "./pages/admin/AuditTrailPage";
 import { CatalogPage } from "./pages/admin/CatalogPage";
 import { DeliveryZonesPage } from "./pages/admin/DeliveryZonesPage";
 import { OrdersPage } from "./pages/admin/OrdersPage";
+import { CustomersPage } from "./pages/admin/CustomersPage";
 import { InventoryItemsPage } from "./pages/admin/InventoryItemsPage";
 import { ReportsPage } from "./pages/admin/ReportsPage";
 import { DashboardPage } from "./pages/admin/DashboardPage";
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="catalog/:catalogKey" element={<CatalogPage />} />
           <Route path="delivery-zones" element={<DeliveryZonesPage />} />
           <Route path="orders" element={<OrdersPage />} />
+          <Route path="customers" element={<CustomersPage />} />
           <Route path="inventory" element={<InventoryItemsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="security" element={<SecuritySettingsPage />} />

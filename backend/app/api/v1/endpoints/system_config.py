@@ -143,6 +143,10 @@ def _number_format_out(session: Session) -> dict:
         "quantity_decimals": qty,
         # Separators come from Organization > Locale > Number format
         "number_format": (org.number_format if org and org.number_format else "1,234.56"),
+        # Shown to every signed-in user: the order form needs them for the
+        # delivery-time dropdown (12/24-hour, and which times the shop is open).
+        "time_format": (org.time_format if org and org.time_format else "hh:mm A"),
+        "business_hours": (org.business_hours if org and org.business_hours else None),
     }
 
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Printer, Share2, MessageCircle, Copy, Check, ExternalLink } from "lucide-react";
 import { Modal } from "./Modal";
 import { ordersApi, ReceiptResponse } from "../api/orders";
+import { failureReason } from "../api/client";
 
 /** Customer receipt: preview the real PDF, then save, print or share it. */
 export type ReceiptContext = "saved" | "rider" | "paid" | null;
@@ -32,7 +33,12 @@ export function ReceiptModal({ orderId, context = null, riderName, onClose }: { 
         url = URL.createObjectURL(blob);
         setPdfUrl(url);
       })
-      .catch((err) => live && setError(err?.response?.status === 403 ? "You don't have access to this order's receipt." : "Couldn't prepare the receipt. Try again."));
+      .catch(async (err) => {
+        if (!live) return;
+        if (err?.response?.status === 403) { setError("You don't have access to this order's receipt."); return; }
+        // Say why, so a problem can be found quickly (the server log has the full details).
+        setError(`Couldn't prepare the receipt: ${await failureReason(err)}. If this keeps happening, send the file C:\\ProgramData\\CakeStudio\\logs\\server.log to support.`);
+      });
     return () => {
       live = false;
       if (url) URL.revokeObjectURL(url);

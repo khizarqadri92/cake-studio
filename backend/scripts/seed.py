@@ -1,3 +1,4 @@
+import os
 """Run once against a fresh database, after `alembic upgrade head`.
 
     python -m scripts.seed
@@ -100,6 +101,9 @@ PHASE_1_PERMISSIONS += [
     ("orders.button.mark_ready", "Mark an order ready for delivery/pickup"),
     ("orders.button.assign_rider", "Assign a delivery rider to a ready order"),
     ("orders.button.print", "Print or reprint an order's kitchen ticket"),
+    ("inventory.button.edit_purchase", "Edit a recorded purchase (stock is corrected automatically)"),
+    ("customers.page.view", "Open the Customers page"),
+    ("customers.field.edit", "Edit customer details"),
     ("reports.page.view", "Open the Reports section"),
     ("reports.orders.view", "Reports: orders, best sellers, money outstanding"),
     ("reports.inventory.view", "Reports: ingredients used, purchases, stock value and wastage"),
@@ -224,6 +228,7 @@ def run() -> None:
             "orders.button.handover",
             "orders.button.cancel",
             "orders.button.print",
+            "customers.page.view", "customers.field.edit",
             # reports, except profit (kept for owners unless you grant it)
             "reports.page.view", "reports.orders.view", "reports.inventory.view",
             "reports.staff.view", "reports.customers.view",
@@ -302,8 +307,13 @@ def run() -> None:
 
         # --- initial super admin login ---
         owner_email = "owner@cakestudio.local"
+        # The Windows installer creates the client's own admin instead, so it
+        # skips this well-known default login.
+        skip_default_admin = os.environ.get("CAKESTUDIO_SKIP_DEFAULT_ADMIN") == "1"
         existing_staff = session.exec(select(Staff).where(Staff.email == owner_email)).first()
-        if not existing_staff:
+        if skip_default_admin:
+            print("Skipping the default owner login (using the accounts already in the database).")
+        elif not existing_staff:
             owner = Staff(
                 id=uuid.uuid4(),
                 full_name="Studio Owner",

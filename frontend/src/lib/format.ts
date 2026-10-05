@@ -50,3 +50,16 @@ export function amountStep(): string {
 export function amountInputValue(value: number): string {
   return Number(value).toFixed(useNumberFormatStore.getState().amount_decimals);
 }
+
+
+/** "14:30" -> "02:30 PM" (12-hour) or "14:30" (24-hour), per Organization > Locale.
+ *  Anything that isn't a HH:MM time (e.g. old free-text "after 5") is shown as typed. */
+export function fmtTime(value: string | null | undefined, pattern?: string): string {
+  if (!value) return "";
+  const m = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!m || !/^\d{1,2}:\d{2}(:\d{2})?$/.test(value.trim())) return value;
+  const h = Number(m[1]), min = m[2];
+  const fmt = pattern ?? useNumberFormatStore.getState().time_format ?? "hh:mm A";
+  if (fmt.startsWith("HH")) return `${String(h).padStart(2, "0")}:${min}`;
+  return `${String(h % 12 || 12).padStart(2, "0")}:${min} ${h < 12 ? "AM" : "PM"}`;
+}

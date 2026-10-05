@@ -3,7 +3,7 @@ from pydantic import BaseModel, model_validator
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.core.database import get_session
-from app.core.permissions import require_permission
+from app.core.permissions import require_any_permission, require_permission
 from app.services.audit import log_audit
 from app.models.delivery import DeliveryZone
 
@@ -41,7 +41,7 @@ def _overlaps(session: Session, payload: DeliveryZoneIn, exclude_id: uuid.UUID |
 @router.get("", response_model=list[DeliveryZone])
 def list_zones(
     session: Session = Depends(get_session),
-    _staff_id: str = Depends(require_permission("delivery_zones.page.view")),
+    _staff_id: str = Depends(require_any_permission("delivery_zones.page.view", "orders.page.view")),
 ):
     return session.exec(select(DeliveryZone).order_by(DeliveryZone.distance_from_km)).all()
 

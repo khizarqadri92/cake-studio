@@ -270,3 +270,15 @@ input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--color-plum
   .cs-page .rounded-2xl { break-inside: avoid; box-shadow: none !important; }
   .min-h-screen { min-height: 0 !important; }
 }
+
+/* A popup "nudge" when the background is clicked: it stays open on purpose. */
+@keyframes cs-nudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+.cs-nudge { animation: cs-nudge 0.32s ease-in-out; }
+@media (prefers-reduced-motion: reduce) {
+  .cs-nudge { animation: none; outline: 3px solid rgb(var(--color-plum) / 0.45); outline-offset: 2px; }
+}
